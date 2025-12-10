@@ -1,0 +1,145 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String   @id @default(uuid())
+  nome          String
+  whatsapp      String   @unique
+  email         String?  @unique
+  cpf           String?  @unique
+  rg            String?
+  nascimento    DateTime?
+  foto_url      String?
+  pix_key       String?
+  role          Role     @default(PARTICIPANT)
+  approved      Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // relations
+  rifas         Rifa[]   @relation("CriadorRifas")
+  reservas      Reserva[]
+  mensagens     MensagemApoio[]
+  sorteiosVenc  Sorteio[] @relation("Vencedor")
+}
+
+model Rifa {
+  id                 String    @id @default(uuid())
+  criadorId          String
+  titulo             String
+  descricao          String
+  foto_url           String?
+  quantidade_total   Int
+  valor_por_numero   Float
+  percentual_minimo  Float    @default(40)
+  valor_minimo       Float
+  data_sorteio_prev  DateTime
+  tipo_premio        PremioTipo
+  premio_descricao   String?
+  premio_foto_url    String?
+  limite_por_part    Int?
+  termos             String?
+  status             RifaStatus @default(DRAFT)
+  token_admin        String? 
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime @updatedAt
+
+  criador            User      @relation("CriadorRifas", fields: [criadorId], references: [id])
+  numeros            Numero[]
+  reservas           Reserva[]
+  mensagens          MensagemApoio[]
+  sorteios           Sorteio[]
+}
+
+model Numero {
+  id         String   @id @default(uuid())
+  rifaId     String
+  numero     Int
+  status     NumeroStatus @default(AVAILABLE)
+  reservedBy String?
+  reservedUntil DateTime?
+  soldTo     String?
+  soldAt     DateTime?
+  price      Float
+  rifa       Rifa      @relation(fields: [rifaId], references: [id])
+
+  @@unique([rifaId, numero])
+}
+
+model Reserva {
+  id        String   @id @default(uuid())
+  rifaId    String
+  userId    String
+  numeros   String   // JSON array of numbers (simplificação inicial)
+  total     Float
+  status    ReservaStatus @default(PENDING)
+  proof     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user     User @relation(fields: [userId], references: [id])
+  rifa     Rifa @relation(fields: [rifaId], references: [id])
+}
+
+model MensagemApoio {
+  id        String   @id @default(uuid())
+  rifaId    String
+  userId    String
+  texto     String
+  createdAt DateTime @default(now())
+  removedBy String?
+  user      User @relation(fields: [userId], references: [id])
+  rifa      Rifa @relation(fields: [rifaId], references: [id])
+}
+
+model Sorteio {
+  id              String   @id @default(uuid())
+  rifaId          String
+  vencedorUserId  String?
+  numeroSorteado  Int?
+  totalArrecadado Float?
+  numerosVendidos Int?
+  timestamp       DateTime @default(now())
+  seedHash        String?
+  rifa            Rifa     @relation(fields: [rifaId], references: [id])
+  vencedor        User?    @relation("Vencedor", fields: [vencedorUserId], references: [id])
+}
+
+enum Role {
+  PARTICIPANT
+  CREATOR
+  ADMIN
+}
+
+enum PremioTipo {
+  FISICO
+  DINHEIRO
+  SIMBOLICO
+}
+
+enum RifaStatus {
+  DRAFT
+  PUBLISHED
+  PAUSED
+  CANCELLED
+  COMPLETED
+  FAILED
+}
+
+enum NumeroStatus {
+  AVAILABLE
+  RESERVED
+  SOLD
+}
+
+enum ReservaStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+}
